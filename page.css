@@ -15,5 +15,7 @@ p { margin: 8px 0; }
 ul { padding-left: 20px; margin: 8px 0; } li { margin: 4px 0; }
 code { background: var(--surface); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: 14px; }
 a { color: var(--primary); }
+.bmc-wrap { margin-top: 20px; }
+.bmc-wrap img { display: block; max-width: 220px; height: auto; }
 table { border-collapse: collapse; width: 100%; font-size: 15px; background: var(--surface); }
 td, th { border: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: top; }
