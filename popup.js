@@ -85,28 +85,74 @@ async function addToReport(list, url) {
 /* ---------- Scan ---------- */
 const state = { tab: null, findings: [], cookieFindings: [], tokens: [], tech: [], filter: 'all', cookieInfo: null, scanned: false };
 
+// Side panel stays open across focus changes. Prefer the last-focused browser
+// window; currentWindow alone can miss the page tab after the popup→panel move.
 async function currentTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  return tab || null;
+  for (const query of [
+    { active: true, lastFocusedWindow: true },
+    { active: true, currentWindow: true }
+  ]) {
+    const [tab] = await chrome.tabs.query(query);
+    if (tab && tab.id != null) return tab;
+  }
+  const actives = await chrome.tabs.query({ active: true });
+  return actives[0] || null;
 }
-const isWeb = (tab) => tab && /^https?:/i.test(tab.url || '');
+
+function tabUrl(tab) {
+  return (tab && (tab.url || tab.pendingUrl)) || '';
+}
+const isWeb = (tab) => /^https?:/i.test(tabUrl(tab));
+
+function restrictedScanMessage(tab) {
+  const url = tabUrl(tab);
+  if (!tab) {
+    return 'Could not find the active browser tab. Click a normal website tab, then scan again.';
+  }
+  if (!url) {
+    return 'Could not read this tab\'s address. Click the DevSec Toolkit icon on a normal website, then try again.';
+  }
+  if (/^chrome:\/\//i.test(url) || /^chrome-extension:\/\//i.test(url) || /^edge:\/\//i.test(url) || /^about:/i.test(url)) {
+    return 'This tab is a browser page (' + url.split('/')[0] + '//…), not a website. Open an http or https page in the main tab, then scan again.';
+  }
+  if (/chrome\.google\.com\/webstore/i.test(url) || /chromewebstore\.google\.com/i.test(url)) {
+    return 'Chrome blocks extensions on the Web Store. Open a regular website and try again.';
+  }
+  return 'Open a regular website (http or https) and try again. Chrome does not let extensions run on its own pages or the Web Store.';
+}
+
+// Side-panel button clicks do not grant activeTab the way opening a popup did.
+// Fall back to optional host permission for this origin when injection is blocked.
+async function execInTab(tab, func, world) {
+  const opts = { target: { tabId: tab.id }, func };
+  if (world) opts.world = world;
+  try {
+    return await chrome.scripting.executeScript(opts);
+  } catch (first) {
+    const origin = new URL(tab.url).origin + '/*';
+    let granted = false;
+    try { granted = await chrome.permissions.request({ origins: [origin] }); } catch (e) { /* declined */ }
+    if (!granted) throw first;
+    return await chrome.scripting.executeScript(opts);
+  }
+}
 
 async function runScan() {
   const status = $('#scan-status'), btn = $('#scan-btn');
   setStatus(status, '');
   const tab = await currentTab();
   if (!isWeb(tab)) {
-    setStatus(status, 'Open a regular website (http or https) and try again. Chrome does not let extensions run on its own pages or the Web Store.', 'err');
+    setStatus(status, restrictedScanMessage(tab), 'err');
     return;
   }
   state.tab = tab;
   btn.disabled = true; btn.textContent = 'Scanning…';
   setStatus(status, 'Reading the page and its scripts…');
   try {
-    const [{ result: data }] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: collectPageData });
+    const [{ result: data }] = await execInTab(tab, collectPageData);
     let globals = [];
     try {
-      const [g] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: 'MAIN', func: detectGlobals });
+      const [g] = await execInTab(tab, detectGlobals, 'MAIN');
       globals = (g && g.result) || [];
     } catch (e) { /* optional */ }
     const tech = [];
@@ -314,6 +360,221 @@ function rxRun() {
 }
 ['#rx-pat', '#rx-flags', '#rx-text'].forEach((s) => $(s).addEventListener('input', debounce(rxRun, 200)));
 
+/* ---------- Burp proxy ---------- */
+const BURP_DEFAULTS = { host: '127.0.0.1', port: 8080, enabled: false };
+const BURP_BYPASS = ['<local>', 'localhost', '127.0.0.1', '[::1]', '*.localhost'];
+let burp = { ...BURP_DEFAULTS };
+
+function burpConfig(host, port) {
+  return {
+    mode: 'fixed_servers',
+    rules: {
+      singleProxy: { scheme: 'http', host, port },
+      bypassList: BURP_BYPASS
+    }
+  };
+}
+
+function setBurpPill(kind, text) {
+  const pill = $('#burp-pill');
+  pill.className = 'proxy-pill' + (kind ? ' ' + kind : '');
+  $('#burp-pill-text').textContent = text;
+}
+
+function readBurpForm() {
+  const host = ($('#burp-host').value || '').trim() || BURP_DEFAULTS.host;
+  const port = Number.parseInt($('#burp-port').value, 10);
+  return { host, port };
+}
+
+function validBurp({ host, port }) {
+  if (!host) return 'Enter a host (for example 127.0.0.1).';
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return 'Port must be a number from 1 to 65535.';
+  return '';
+}
+
+async function hasProxyPermission() {
+  try { return await chrome.permissions.contains({ permissions: ['proxy'] }); }
+  catch (e) { return false; }
+}
+
+async function ensureProxyPermission() {
+  if (await hasProxyPermission()) return true;
+  try { return await chrome.permissions.request({ permissions: ['proxy'] }); }
+  catch (e) { return false; }
+}
+
+function proxyGet() {
+  return new Promise((resolve, reject) => {
+    chrome.proxy.settings.get({ incognito: false }, (details) => {
+      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+      else resolve(details);
+    });
+  });
+}
+
+function proxySet(value) {
+  return new Promise((resolve, reject) => {
+    chrome.proxy.settings.set({ value, scope: 'regular' }, () => {
+      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+      else resolve();
+    });
+  });
+}
+
+function proxyClear() {
+  return new Promise((resolve, reject) => {
+    chrome.proxy.settings.clear({ scope: 'regular' }, () => {
+      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+      else resolve();
+    });
+  });
+}
+
+async function syncBurpUi() {
+  const status = $('#burp-status');
+  const btn = $('#burp-toggle');
+  $('#burp-host').value = burp.host || BURP_DEFAULTS.host;
+  $('#burp-port').value = String(burp.port || BURP_DEFAULTS.port);
+
+  const allowed = await hasProxyPermission();
+  if (!allowed) {
+    burp.enabled = false;
+    setBurpPill('', 'Proxy off');
+    btn.textContent = 'Use Burp';
+    btn.classList.remove('danger');
+    btn.classList.add('primary');
+    setStatus(status, '');
+    return;
+  }
+
+  let details;
+  try { details = await proxyGet(); }
+  catch (e) {
+    setBurpPill('warn', 'Could not read proxy');
+    setStatus(status, e.message, 'err');
+    return;
+  }
+
+  const level = details.levelOfControl;
+  const value = details.value || {};
+  const rules = value.rules || {};
+  const single = rules.singleProxy || rules.proxyForHttp || null;
+  const onViaUs =
+    value.mode === 'fixed_servers' &&
+    level === 'controlled_by_this_extension' &&
+    single &&
+    single.host === burp.host &&
+    Number(single.port) === Number(burp.port);
+
+  // Keep stored flag honest if Chrome cleared our settings elsewhere.
+  if (burp.enabled && level !== 'controlled_by_this_extension') {
+    burp.enabled = false;
+    await store.set('burp', burp);
+  } else if (!burp.enabled && onViaUs) {
+    burp.enabled = true;
+    await store.set('burp', burp);
+  }
+
+  if (level === 'controlled_by_other_extensions') {
+    setBurpPill('warn', 'Another extension controls the proxy');
+    btn.textContent = 'Use Burp';
+    btn.classList.add('primary');
+    btn.classList.remove('danger');
+    setStatus(status, 'Disable the other proxy extension, then try again.', 'err');
+    return;
+  }
+  if (level === 'not_controllable') {
+    setBurpPill('warn', 'Proxy not controllable');
+    btn.textContent = 'Use Burp';
+    btn.classList.add('primary');
+    btn.classList.remove('danger');
+    setStatus(status, 'Chrome policies prevent this extension from changing the proxy.', 'err');
+    return;
+  }
+
+  if (burp.enabled || onViaUs) {
+    setBurpPill('on', 'Proxy ON via Burp · ' + burp.host + ':' + burp.port);
+    btn.textContent = 'Disable proxy';
+    btn.classList.remove('primary');
+    btn.classList.add('danger');
+    setStatus(status, 'Browser traffic is routed through Burp. Turn it off when you finish testing.', 'ok');
+  } else {
+    setBurpPill('', 'Proxy off');
+    btn.textContent = 'Use Burp';
+    btn.classList.add('primary');
+    btn.classList.remove('danger');
+    setStatus(status, '');
+  }
+}
+
+async function enableBurp() {
+  const form = readBurpForm();
+  const err = validBurp(form);
+  if (err) { setStatus($('#burp-status'), err, 'err'); return; }
+  if (!(await ensureProxyPermission())) {
+    setStatus($('#burp-status'), 'Chrome needs the “proxy” permission to route traffic through Burp.', 'err');
+    toast('Proxy permission declined');
+    return;
+  }
+  try {
+    await proxySet(burpConfig(form.host, form.port));
+    burp = { host: form.host, port: form.port, enabled: true };
+    await store.set('burp', burp);
+    toast('Burp proxy enabled');
+  } catch (e) {
+    setStatus($('#burp-status'), 'Could not enable proxy: ' + e.message, 'err');
+    return;
+  }
+  await syncBurpUi();
+}
+
+async function disableBurp() {
+  if (!(await hasProxyPermission())) {
+    burp.enabled = false;
+    await store.set('burp', burp);
+    await syncBurpUi();
+    return;
+  }
+  try {
+    await proxyClear();
+    const form = readBurpForm();
+    burp.enabled = false;
+    if (!validBurp(form)) {
+      burp.host = form.host;
+      burp.port = form.port;
+    }
+    await store.set('burp', { host: burp.host, port: burp.port, enabled: false });
+    toast('Proxy disabled');
+  } catch (e) {
+    setStatus($('#burp-status'), 'Could not disable proxy: ' + e.message, 'err');
+    return;
+  }
+  await syncBurpUi();
+}
+
+$('#burp-toggle').addEventListener('click', async () => {
+  if (burp.enabled) await disableBurp();
+  else await enableBurp();
+});
+
+const saveBurpFields = debounce(async () => {
+  const form = readBurpForm();
+  if (validBurp(form)) return;
+  burp.host = form.host;
+  burp.port = form.port;
+  await store.set('burp', { host: burp.host, port: burp.port, enabled: burp.enabled });
+  // If proxy is already on, re-apply with the new host/port.
+  if (burp.enabled && (await hasProxyPermission())) {
+    try {
+      await proxySet(burpConfig(form.host, form.port));
+      await syncBurpUi();
+    } catch (e) { setStatus($('#burp-status'), 'Could not update proxy: ' + e.message, 'err'); }
+  }
+}, 300);
+$('#burp-host').addEventListener('input', saveBurpFields);
+$('#burp-port').addEventListener('input', saveBurpFields);
+
 /* ---------- Report ---------- */
 const meta = { project: '', tester: '', scope: '' };
 function renderReport() {
@@ -349,9 +610,19 @@ $('#rp-clear').addEventListener('click', async () => {
 (async function init() {
   saved = await store.get('findings', []);
   Object.assign(meta, await store.get('meta', {}));
+  Object.assign(burp, await store.get('burp', BURP_DEFAULTS));
   $('#rp-project').value = meta.project || ''; $('#rp-tester').value = meta.tester || ''; $('#rp-scope').value = meta.scope || '';
   renderReport();
+  await syncBurpUi();
   const tab = await currentTab();
-  if (isWeb(tab)) { state.tab = tab; $('#site').textContent = new URL(tab.url).hostname; }
-  else $('#site').textContent = 'Open a website to scan it';
+  if (isWeb(tab)) {
+    state.tab = tab;
+    try { $('#site').textContent = new URL(tabUrl(tab)).hostname; }
+    catch (e) { $('#site').textContent = 'Ready when you are'; }
+  } else {
+    const url = tabUrl(tab);
+    $('#site').textContent = url && (/^chrome:\/\//i.test(url) || /^chrome-extension:\/\//i.test(url))
+      ? 'Switch to a website tab'
+      : 'Open a website to scan it';
+  }
 })();

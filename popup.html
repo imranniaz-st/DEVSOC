@@ -24,6 +24,7 @@
         <button role="tab" id="t-json" aria-controls="p-json" aria-selected="false" tabindex="-1" data-tab="json">JSON</button>
         <button role="tab" id="t-regex" aria-controls="p-regex" aria-selected="false" tabindex="-1" data-tab="regex">Regex</button>
         <button role="tab" id="t-report" aria-controls="p-report" aria-selected="false" tabindex="-1" data-tab="report">Report <span id="report-count" class="count" hidden>0</span></button>
+        <button role="tab" id="t-burp" aria-controls="p-burp" aria-selected="false" tabindex="-1" data-tab="burp">Burp</button>
       </nav>
 
       <footer class="side-foot">
@@ -116,6 +117,42 @@
             <button id="rp-copy" class="ghost">Copy Markdown</button>
             <button id="rp-clear" class="danger">Clear all</button>
           </div>
+        </section>
+
+        <section id="p-burp" role="tabpanel" aria-labelledby="t-burp" hidden>
+          <div class="card">
+            <h2>Burp Suite proxy</h2>
+            <p>Send this browser’s HTTP and HTTPS traffic through Burp’s proxy listener. Settings stay on your device.</p>
+            <p class="note">Enabling this routes browser traffic through Burp. Burp must be running, and you need the Burp CA trusted in Chrome for HTTPS to work.</p>
+          </div>
+
+          <div class="proxy-pill" id="burp-pill" aria-live="polite">
+            <span class="proxy-dot" aria-hidden="true"></span>
+            <span id="burp-pill-text">Proxy off</span>
+          </div>
+
+          <div class="grid2">
+            <div>
+              <label for="burp-host">Host</label>
+              <input id="burp-host" type="text" spellcheck="false" autocomplete="off" placeholder="127.0.0.1" value="127.0.0.1">
+            </div>
+            <div>
+              <label for="burp-port">Port</label>
+              <input id="burp-port" type="number" min="1" max="65535" spellcheck="false" placeholder="8080" value="8080">
+            </div>
+          </div>
+
+          <button id="burp-toggle" class="primary wide">Use Burp</button>
+          <p id="burp-status" class="status" role="status" aria-live="polite"></p>
+
+          <h2 class="sub">Quick setup</h2>
+          <ol class="steps">
+            <li>Start Burp Suite and open <strong>Proxy → Proxy settings</strong>.</li>
+            <li>Confirm a listener on <strong>127.0.0.1:8080</strong> (or match the host/port above).</li>
+            <li>Install and trust the <strong>Burp CA</strong> in Chrome so HTTPS can be intercepted.</li>
+            <li>Press <strong>Use Burp</strong> here. Press <strong>Disable proxy</strong> when you are done.</li>
+          </ol>
+          <p class="hint">Localhost and loopback addresses are bypassed so Chrome internals keep working.</p>
         </section>
       </main>
 

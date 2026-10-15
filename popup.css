@@ -225,6 +225,39 @@ pre { margin: 8px 0 0; padding: 8px 10px; background: var(--code); border-radius
 .rp-item .badge { margin: 0; }
 #rp-list { margin: 12px 0 4px; max-height: 190px; overflow: auto; }
 
+.proxy-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-weight: 700;
+  font-size: 12.5px;
+}
+.proxy-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex: none;
+}
+.proxy-pill.on { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+.proxy-pill.on .proxy-dot { background: var(--ok); }
+.proxy-pill.warn { border-color: color-mix(in srgb, var(--medium) 45%, var(--line)); }
+.proxy-pill.warn .proxy-dot { background: var(--medium); }
+.steps {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.steps li { margin-top: 6px; }
+.steps strong { color: var(--ink); font-weight: 600; }
+.hint { margin-top: 10px; color: var(--muted); font-size: 12px; }
+
 .foot {
   display: flex;
   justify-content: space-between;

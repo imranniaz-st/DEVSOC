@@ -18,19 +18,23 @@
     <ul>
       <li><strong>The page you scan.</strong> When you press "Scan this page", the extension reads that page's HTML, scripts, headers, and browser storage so it can show findings. It does this only for the active tab and only after you click.</li>
       <li><strong>Cookies (optional).</strong> If you press "Check cookies", Chrome asks for permission for that one site. Cookie attributes are analyzed locally and never leave your device. You can remove the permission at any time.</li>
+      <li><strong>Proxy settings (optional).</strong> If you press "Use Burp" on the Burp tab, Chrome asks for permission to change this browser’s proxy. Host and port you enter are stored locally. Traffic is sent to the proxy you choose (typically Burp on your machine), not to us.</li>
     </ul>
 
     <h2>What is saved on your device</h2>
-    <p>Findings you add to a report, and the report title, author and scope you type, are stored with <code>chrome.storage.local</code> on your computer so they are there next time. Use "Clear all" on the Report tab, or remove the extension, to delete them. Nothing is synced or uploaded.</p>
+    <p>Findings you add to a report, the report title, author and scope you type, and your Burp proxy host/port preference are stored with <code>chrome.storage.local</code> on your computer so they are there next time. Use "Clear all" on the Report tab, disable the Burp proxy, or remove the extension, to delete them. Nothing is synced or uploaded.</p>
 
     <h2>Network activity</h2>
-    <p>A scan makes requests only to the website you are on (its own page and its own script files) to read headers and look for exposed secrets. The extension never sends data to us or to any third party.</p>
+    <p>A scan makes requests only to the website you are on (its own page and its own script files) to read headers and look for exposed secrets. The extension never sends data to us or to any third party. If you enable the Burp proxy, your browser’s web traffic is routed through the proxy listener you configured (for example Burp Suite on localhost).</p>
 
     <h2>Permissions, in plain language</h2>
     <ul>
-      <li><code>activeTab</code> and <code>scripting</code>: run a scan on the current tab when you click.</li>
-      <li><code>storage</code>: remember your report on your device.</li>
+      <li><code>activeTab</code>, <code>tabs</code>, and <code>scripting</code>: find the page in your main browser tab and run a scan when you click. The side panel stays open, so the extension needs to read the active tab’s address locally.</li>
+      <li><code>storage</code>: remember your report and Burp proxy preferences on your device.</li>
+      <li><code>sidePanel</code>: show the toolkit beside the page instead of a popup.</li>
       <li><code>cookies</code> (optional): check cookie flags for a site you approve.</li>
+      <li><code>proxy</code> (optional): set or clear Chrome’s proxy so traffic can go through Burp Suite when you toggle it.</li>
+      <li>Host access for a site (optional): if a scan needs it after the side panel was already open, Chrome asks for that one origin.</li>
     </ul>
 
     <h2>Children</h2>
