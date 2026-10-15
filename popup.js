@@ -51,6 +51,7 @@ function activate(name, focus) {
     $('#' + t.getAttribute('aria-controls')).hidden = !on;
     if (on && focus) t.focus();
   });
+  if (name === 'network' && typeof syncNetUi === 'function') syncNetUi();
 }
 tabs.forEach((t, i) => {
   t.addEventListener('click', () => activate(t.dataset.tab));
@@ -606,6 +607,373 @@ $('#rp-clear').addEventListener('click', async () => {
   saved = []; await store.set('findings', saved); renderReport();
 });
 
+/* ---------- Network monitoring ---------- */
+const NET_HOSTS = ['http://*/*', 'https://*/*'];
+const netUi = {
+  enabled: false,
+  paused: false,
+  listening: false,
+  entries: [],
+  selectedId: null,
+  filter: '',
+  method: '',
+  tabId: null
+};
+
+function netMsg(type, extra) {
+  return chrome.runtime.sendMessage({ type, ...(extra || {}) });
+}
+
+async function hasNetPermission() {
+  try {
+    return await chrome.permissions.contains({
+      permissions: ['webRequest'],
+      origins: NET_HOSTS
+    });
+  } catch (e) { return false; }
+}
+
+async function ensureNetPermission() {
+  if (await hasNetPermission()) return true;
+  try {
+    return await chrome.permissions.request({
+      permissions: ['webRequest'],
+      origins: NET_HOSTS
+    });
+  } catch (e) { return false; }
+}
+
+function formatBytes(n) {
+  if (n == null || !Number.isFinite(n)) return '—';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(n < 10 * 1024 ? 1 : 0) + ' KB';
+  return (n / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function formatDuration(ms) {
+  if (ms == null || !Number.isFinite(ms)) return '—';
+  if (ms < 1000) return ms + ' ms';
+  return (ms / 1000).toFixed(2) + ' s';
+}
+
+function shortUrl(url) {
+  try {
+    const u = new URL(url);
+    return u.pathname + u.search + u.hash || '/';
+  } catch (e) {
+    return url || '';
+  }
+}
+
+function statusClass(entry) {
+  if (entry.error) return 'err';
+  if (entry.statusCode == null) return 'pending';
+  const c = entry.statusCode;
+  if (c >= 200 && c < 300) return 'ok';
+  if (c >= 300 && c < 400) return 'redirect';
+  if (c >= 400 && c < 500) return 'client';
+  if (c >= 500) return 'server';
+  return '';
+}
+
+function statusText(entry) {
+  if (entry.error) return 'ERR';
+  if (entry.statusCode == null) return '…';
+  return String(entry.statusCode);
+}
+
+function entrySize(entry) {
+  if (entry.responseSize != null) return entry.responseSize;
+  if (entry.requestBodySize != null) return entry.requestBodySize;
+  return null;
+}
+
+function headersBlock(list) {
+  if (!list || !list.length) return '(none captured)';
+  return list.map((h) => h.name + ': ' + h.value).join('\n');
+}
+
+function netFiltered() {
+  const q = (netUi.filter || '').trim().toLowerCase();
+  const method = (netUi.method || '').toUpperCase();
+  return netUi.entries.filter((e) => {
+    if (method && e.method !== method) return false;
+    if (q && !(e.url || '').toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function setNetPill() {
+  const pill = $('#net-pill');
+  const text = $('#net-pill-text');
+  pill.className = 'proxy-pill';
+  if (!netUi.enabled) {
+    text.textContent = 'Monitoring off';
+  } else if (netUi.paused) {
+    pill.classList.add('warn');
+    text.textContent = 'Paused · active tab only';
+  } else if (netUi.listening) {
+    pill.classList.add('on');
+    text.textContent = 'Live · active tab';
+  } else {
+    pill.classList.add('warn');
+    text.textContent = 'Permission needed';
+  }
+}
+
+function syncNetControls() {
+  const toggle = $('#net-toggle');
+  const pause = $('#net-pause');
+  const clear = $('#net-clear');
+  toggle.textContent = netUi.enabled ? 'Stop monitoring' : 'Start monitoring';
+  pause.disabled = !netUi.enabled;
+  pause.textContent = netUi.paused ? 'Resume' : 'Pause';
+  clear.disabled = !netUi.enabled && !netUi.entries.length;
+  setNetPill();
+  const badge = $('#net-count');
+  const n = netFiltered().length;
+  badge.hidden = !n;
+  badge.textContent = String(n);
+}
+
+function renderNetDetail(entry) {
+  const box = $('#net-detail');
+  if (!entry) { box.hidden = true; box.replaceChildren(); return; }
+  box.hidden = false;
+  box.replaceChildren(
+    el('h3', null, entry.method + ' · ' + (entry.type || 'other')),
+    el('div', { class: 'net-url' }, entry.url || ''),
+    el('dl', { class: 'kv' },
+      el('dt', null, 'Status'), el('dd', null, entry.error ? entry.error : (entry.statusCode != null ? String(entry.statusCode) : 'pending') + (entry.statusLine ? ' · ' + entry.statusLine : '')),
+      el('dt', null, 'Time'), el('dd', null, formatDuration(entry.duration)),
+      el('dt', null, 'Response size'), el('dd', null, formatBytes(entry.responseSize) + (entry.fromCache ? ' (cache)' : '')),
+      el('dt', null, 'Request size'), el('dd', null, formatBytes(entry.requestBodySize)),
+      el('dt', null, 'Content-Type'), el('dd', null, entry.contentType || '—'),
+      el('dt', null, 'Initiator'), el('dd', null, entry.initiator || '—'),
+      el('dt', null, 'Remote IP'), el('dd', null, entry.ip || '—')
+    ),
+    el('div', { class: 'sec' }, 'Request headers'),
+    el('pre', { class: 'net-headers' }, headersBlock(entry.requestHeaders)),
+    el('div', { class: 'sec' }, 'Response headers'),
+    el('pre', { class: 'net-headers' }, headersBlock(entry.responseHeaders)),
+    el('p', { class: 'hint' }, 'Bodies are not available via webRequest in Manifest V3. Use Burp for full intercept.')
+  );
+}
+
+function renderNetList() {
+  const box = $('#net-list');
+  const rows = netFiltered();
+  const prevScroll = box.scrollTop;
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 28;
+  box.replaceChildren();
+  if (!rows.length) {
+    const msg = !netUi.enabled
+      ? 'Press Start monitoring to capture requests for the active tab.'
+      : netUi.entries.length
+        ? 'No requests match this filter.'
+        : (netUi.paused ? 'Paused. Resume to capture new requests.' : 'Waiting for requests on the active tab…');
+    box.append(el('div', { class: 'net-empty' }, msg));
+    renderNetDetail(null);
+    syncNetControls();
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  rows.forEach((entry) => {
+    const row = el('div', {
+      class: 'net-row' + (entry.id === netUi.selectedId ? ' selected' : ''),
+      role: 'listitem',
+      title: entry.url,
+      onclick: () => {
+        netUi.selectedId = entry.id;
+        renderNetList();
+      }
+    },
+      el('span', { class: 'm' }, entry.method),
+      el('span', { class: 'st ' + statusClass(entry) }, statusText(entry)),
+      el('span', { class: 'url' }, shortUrl(entry.url)),
+      el('span', { class: 'ty' }, entry.type || ''),
+      el('span', { class: 'tm' }, formatDuration(entry.duration)),
+      el('span', { class: 'sz' }, formatBytes(entrySize(entry)))
+    );
+    frag.append(row);
+  });
+  box.append(frag);
+  const selected = rows.find((e) => e.id === netUi.selectedId) || null;
+  if (!selected) netUi.selectedId = null;
+  renderNetDetail(selected);
+  if ($('#net-autoscroll').checked && atBottom) box.scrollTop = box.scrollHeight;
+  else box.scrollTop = prevScroll;
+  syncNetControls();
+}
+
+function upsertNetEntry(entry) {
+  if (!entry || entry.tabId !== netUi.tabId) return;
+  const i = netUi.entries.findIndex((e) => e.id === entry.id);
+  if (i >= 0) netUi.entries[i] = entry;
+  else netUi.entries.push(entry);
+  while (netUi.entries.length > 150) netUi.entries.shift();
+  renderNetList();
+}
+
+async function refreshNetTabId() {
+  const tab = await currentTab();
+  const id = tab && tab.id != null ? tab.id : null;
+  if (id !== netUi.tabId) {
+    netUi.tabId = id;
+    netUi.selectedId = null;
+    return true;
+  }
+  return false;
+}
+
+async function loadNetList() {
+  await refreshNetTabId();
+  if (netUi.tabId == null) {
+    netUi.entries = [];
+    renderNetList();
+    setStatus($('#net-status'), 'Could not find the active browser tab.', 'err');
+    return;
+  }
+  try {
+    const res = await netMsg('netMon:list', { tabId: netUi.tabId });
+    if (res && res.ok) {
+      netUi.enabled = !!res.enabled;
+      netUi.paused = !!res.paused;
+      netUi.listening = !!res.listening;
+      netUi.entries = Array.isArray(res.entries) ? res.entries.slice() : [];
+    }
+  } catch (e) {
+    netUi.entries = [];
+  }
+  renderNetList();
+}
+
+async function syncNetUi() {
+  try {
+    const res = await netMsg('netMon:getState');
+    if (res && res.ok) {
+      netUi.enabled = !!res.enabled;
+      netUi.paused = !!res.paused;
+      netUi.listening = !!res.listening;
+    }
+  } catch (e) { /* SW waking */ }
+  syncNetControls();
+  if (netUi.enabled) await loadNetList();
+  else {
+    netUi.entries = [];
+    renderNetList();
+    setStatus($('#net-status'), '');
+  }
+}
+
+$('#net-toggle').addEventListener('click', async () => {
+  const status = $('#net-status');
+  if (netUi.enabled) {
+    try { await netMsg('netMon:stop'); } catch (e) { /* ignore */ }
+    netUi.enabled = false;
+    netUi.paused = false;
+    netUi.listening = false;
+    setStatus(status, 'Monitoring stopped. Captured rows stay until you Clear.', 'ok');
+    syncNetControls();
+    toast('Network monitoring stopped');
+    return;
+  }
+  setStatus(status, 'Chrome will ask for permission to observe http(s) requests…');
+  if (!(await ensureNetPermission())) {
+    setStatus(status, 'Chrome needs webRequest and site access to show network traffic.', 'err');
+    toast('Network permission declined');
+    return;
+  }
+  try {
+    const res = await netMsg('netMon:start');
+    if (!res || !res.ok) {
+      setStatus(status, (res && res.error) || 'Could not start monitoring. Reload the extension and try again.', 'err');
+      return;
+    }
+    netUi.enabled = true;
+    netUi.paused = false;
+    netUi.listening = !!res.listening;
+    if (!netUi.listening) {
+      setStatus(status, 'Permission granted, but listeners did not attach. Press Stop, then Start again — or reload the extension.', 'err');
+    } else {
+      setStatus(status, 'Listening for requests on the active tab. Click a row for headers and timing.', 'ok');
+      toast('Network monitoring on');
+    }
+    await loadNetList();
+  } catch (e) {
+    setStatus(status, 'Could not start monitoring: ' + (e && e.message ? e.message : e), 'err');
+  }
+  syncNetControls();
+});
+
+$('#net-pause').addEventListener('click', async () => {
+  if (!netUi.enabled) return;
+  try {
+    const res = await netMsg(netUi.paused ? 'netMon:resume' : 'netMon:pause');
+    if (res && res.ok) {
+      netUi.paused = !!res.paused;
+      setStatus($('#net-status'), netUi.paused ? 'Paused — new requests are not captured.' : 'Live again.', netUi.paused ? '' : 'ok');
+      syncNetControls();
+      renderNetList();
+    }
+  } catch (e) {
+    setStatus($('#net-status'), 'Could not update pause state.', 'err');
+  }
+});
+
+$('#net-clear').addEventListener('click', async () => {
+  await refreshNetTabId();
+  try { await netMsg('netMon:clear', { tabId: netUi.tabId }); } catch (e) { /* ignore */ }
+  netUi.entries = [];
+  netUi.selectedId = null;
+  renderNetList();
+  setStatus($('#net-status'), 'Cleared requests for this tab.', 'ok');
+});
+
+$('#net-filter').addEventListener('input', debounce(() => {
+  netUi.filter = $('#net-filter').value || '';
+  renderNetList();
+}, 120));
+$('#net-method').addEventListener('change', () => {
+  netUi.method = $('#net-method').value || '';
+  renderNetList();
+});
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (!msg || !msg.type) return;
+  if (msg.type === 'netMon:state') {
+    netUi.enabled = !!msg.enabled;
+    netUi.paused = !!msg.paused;
+    netUi.listening = !!msg.listening;
+    syncNetControls();
+    return;
+  }
+  if (msg.type === 'netMon:cleared') {
+    if (msg.tabId == null || msg.tabId === netUi.tabId) {
+      netUi.entries = [];
+      netUi.selectedId = null;
+      renderNetList();
+    }
+    return;
+  }
+  if (msg.type === 'netMon:entry' && msg.entry) {
+    upsertNetEntry(msg.entry);
+  }
+});
+
+chrome.tabs.onActivated.addListener(async () => {
+  if ($('#p-network').hidden) return;
+  const changed = await refreshNetTabId();
+  if (changed) await loadNetList();
+});
+
+chrome.tabs.onUpdated.addListener(async (tabId, info) => {
+  if ($('#p-network').hidden) return;
+  if (tabId === netUi.tabId && (info.url || info.status === 'loading')) {
+    // Keep watching the same tab; list already streams live updates.
+  }
+});
+
 /* ---------- Init ---------- */
 (async function init() {
   saved = await store.get('findings', []);
@@ -614,6 +982,7 @@ $('#rp-clear').addEventListener('click', async () => {
   $('#rp-project').value = meta.project || ''; $('#rp-tester').value = meta.tester || ''; $('#rp-scope').value = meta.scope || '';
   renderReport();
   await syncBurpUi();
+  await syncNetUi();
   const tab = await currentTab();
   if (isWeb(tab)) {
     state.tab = tab;

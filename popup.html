@@ -24,6 +24,7 @@
         <button role="tab" id="t-json" aria-controls="p-json" aria-selected="false" tabindex="-1" data-tab="json">JSON</button>
         <button role="tab" id="t-regex" aria-controls="p-regex" aria-selected="false" tabindex="-1" data-tab="regex">Regex</button>
         <button role="tab" id="t-report" aria-controls="p-report" aria-selected="false" tabindex="-1" data-tab="report">Report <span id="report-count" class="count" hidden>0</span></button>
+        <button role="tab" id="t-network" aria-controls="p-network" aria-selected="false" tabindex="-1" data-tab="network">Network <span id="net-count" class="count" hidden>0</span></button>
         <button role="tab" id="t-burp" aria-controls="p-burp" aria-selected="false" tabindex="-1" data-tab="burp">Burp</button>
       </nav>
 
@@ -117,6 +118,50 @@
             <button id="rp-copy" class="ghost">Copy Markdown</button>
             <button id="rp-clear" class="danger">Clear all</button>
           </div>
+        </section>
+
+        <section id="p-network" role="tabpanel" aria-labelledby="t-network" hidden>
+          <div class="card">
+            <h2>Network monitoring</h2>
+            <p>Live request console for the active tab: method, URL, status, type, timing, sizes, and headers.</p>
+            <p class="note">Chrome’s webRequest API cannot show full request/response bodies. Body size is shown when Content-Length or an upload size is available.</p>
+          </div>
+
+          <div class="proxy-pill" id="net-pill" aria-live="polite">
+            <span class="proxy-dot" aria-hidden="true"></span>
+            <span id="net-pill-text">Monitoring off</span>
+          </div>
+
+          <div class="row wrap">
+            <button id="net-toggle" class="primary">Start monitoring</button>
+            <button id="net-pause" class="ghost" disabled>Pause</button>
+            <button id="net-clear" class="ghost" disabled>Clear</button>
+          </div>
+          <p id="net-status" class="status" role="status" aria-live="polite"></p>
+
+          <div class="row wrap net-filters">
+            <div class="grow">
+              <label for="net-filter">Filter URL</label>
+              <input id="net-filter" type="text" spellcheck="false" placeholder="Substring, e.g. /api/">
+            </div>
+            <div>
+              <label for="net-method">Method</label>
+              <select id="net-method">
+                <option value="">All</option>
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="PATCH">PATCH</option>
+                <option value="DELETE">DELETE</option>
+                <option value="OPTIONS">OPTIONS</option>
+                <option value="HEAD">HEAD</option>
+              </select>
+            </div>
+          </div>
+          <label class="net-autoscroll"><input id="net-autoscroll" type="checkbox" checked> Auto-scroll to newest</label>
+
+          <div id="net-list" class="net-console" role="list" aria-label="Network requests"></div>
+          <div id="net-detail" class="net-detail" hidden></div>
         </section>
 
         <section id="p-burp" role="tabpanel" aria-labelledby="t-burp" hidden>
