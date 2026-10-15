@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Welcome to DevSec Toolkit</title>
+  <link rel="stylesheet" href="page.css">
+</head>
+<body>
+  <main class="wrap">
+    <div class="hero">
+      <img src="icons/icon128.png" alt="">
+      <div>
+        <h1>You're all set</h1>
+        <p class="lead">DevSec Toolkit is installed. Here is how to get started in under a minute.</p>
+      </div>
+    </div>
+
+    <h2>Start here</h2>
+    <div class="card">
+      <ol>
+        <li>Click the puzzle-piece icon in Chrome's toolbar and <strong>pin</strong> DevSec Toolkit so it is one click away.</li>
+        <li>Open any website and click the DevSec Toolkit icon — the tools open in Chrome's <strong>side panel</strong>.</li>
+        <li>Press <strong>Scan this page</strong>. Open a finding to see what it means and how to fix it. Press <strong>Add to report</strong> to keep it.</li>
+        <li>Use the left sidebar to switch tools. On <strong>Report</strong>, download Markdown or HTML you can share or print to PDF.</li>
+      </ol>
+    </div>
+
+    <h2>What's inside</h2>
+    <table>
+      <tr><th>Sidebar</th><th>What it does</th></tr>
+      <tr><td>Scan</td><td>Checks security headers (CSP, HSTS and more), mixed content, exposed secrets and API keys, tokens, source maps, outdated libraries, and (with your permission) cookie flags.</td></tr>
+      <tr><td>JWT</td><td>Decodes a token and points out weak spots: no expiry, <code>alg: none</code>, risky header fields.</td></tr>
+      <tr><td>Convert</td><td>Base64, URL, HTML and hex encode and decode, SHA hashes, and a Unix timestamp converter.</td></tr>
+      <tr><td>JSON</td><td>Format, minify, sort and validate, with the exact line and column of any error.</td></tr>
+      <tr><td>Regex</td><td>Test patterns with live matches and capture groups. Slow patterns are stopped safely.</td></tr>
+      <tr><td>Report</td><td>Collect findings and export a client-ready report.</td></tr>
+    </table>
+
+    <h2>Our promises</h2>
+    <div class="card ok">
+      <ul>
+        <li><strong>Everything stays on your computer.</strong> No accounts, no analytics, no servers.</li>
+        <li><strong>Passive only.</strong> A scan reads the page you are on and its own script files. It sends no attack payloads and never contacts other sites.</li>
+        <li><strong>You are in control.</strong> It runs only when you click it. Cookie checking asks for permission, for one site at a time.</li>
+      </ul>
+    </div>
+
+    <h2>Please test responsibly</h2>
+    <div class="card warn">
+      <p>Only scan websites and applications that you <strong>own</strong>, or where you have <strong>clear written permission</strong> to test. Testing systems without permission may be illegal in your country. Results come from automated, passive checks, so review each finding by hand before you act on it or report it.</p>
+    </div>
+
+    <p style="margin-top:32px"><a href="privacy.html">Read the privacy policy</a></p>
+  </main>
+</body>
+</html>

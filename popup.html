@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DevSec Toolkit</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <header class="brand">
+        <img src="icons/icon48.png" alt="" width="28" height="28">
+        <div class="brand-text">
+          <h1>DevSec Toolkit</h1>
+          <p id="site" class="site">Ready when you are</p>
+        </div>
+      </header>
+
+      <nav class="nav" role="tablist" aria-label="Tools" aria-orientation="vertical">
+        <button role="tab" id="t-scan" aria-controls="p-scan" aria-selected="true" data-tab="scan">Scan</button>
+        <button role="tab" id="t-jwt" aria-controls="p-jwt" aria-selected="false" tabindex="-1" data-tab="jwt">JWT</button>
+        <button role="tab" id="t-convert" aria-controls="p-convert" aria-selected="false" tabindex="-1" data-tab="convert">Convert</button>
+        <button role="tab" id="t-json" aria-controls="p-json" aria-selected="false" tabindex="-1" data-tab="json">JSON</button>
+        <button role="tab" id="t-regex" aria-controls="p-regex" aria-selected="false" tabindex="-1" data-tab="regex">Regex</button>
+        <button role="tab" id="t-report" aria-controls="p-report" aria-selected="false" tabindex="-1" data-tab="report">Report <span id="report-count" class="count" hidden>0</span></button>
+      </nav>
+
+      <footer class="side-foot">
+        <a class="help" href="welcome.html" target="_blank" rel="noopener" title="Help and acceptable use">Help</a>
+        <a href="privacy.html" target="_blank" rel="noopener">Privacy</a>
+      </footer>
+    </aside>
+
+    <div class="workspace">
+      <main>
+        <section id="p-scan" role="tabpanel" aria-labelledby="t-scan">
+          <div id="scan-intro" class="card">
+            <h2>Check this page in one click</h2>
+            <p>Looks for missing security headers, risky cookies, exposed secrets and outdated libraries. It only reads the page you are on. Nothing is uploaded.</p>
+            <p class="note">Only scan sites you own or have permission to test.</p>
+          </div>
+          <button id="scan-btn" class="primary wide">Scan this page</button>
+          <p id="scan-status" class="status" role="status" aria-live="polite"></p>
+          <div id="scan-results"></div>
+        </section>
+
+        <section id="p-jwt" role="tabpanel" aria-labelledby="t-jwt" hidden>
+          <label for="jwt-in">Paste a JWT</label>
+          <textarea id="jwt-in" rows="4" spellcheck="false" placeholder="eyJhbGciOi…"></textarea>
+          <div class="row">
+            <button id="jwt-sample" class="ghost">Try a sample</button>
+            <button id="jwt-clear" class="ghost">Clear</button>
+          </div>
+          <p id="jwt-status" class="status" role="status" aria-live="polite"></p>
+          <div id="jwt-out"></div>
+        </section>
+
+        <section id="p-convert" role="tabpanel" aria-labelledby="t-convert" hidden>
+          <label for="cv-mode">What do you want to do?</label>
+          <select id="cv-mode"></select>
+          <label for="cv-in">Input</label>
+          <textarea id="cv-in" rows="4" spellcheck="false" placeholder="Type or paste text"></textarea>
+          <label for="cv-out">Result</label>
+          <textarea id="cv-out" rows="4" readonly spellcheck="false"></textarea>
+          <div class="row">
+            <button id="cv-copy" class="ghost">Copy result</button>
+            <button id="cv-swap" class="ghost">Use result as input</button>
+          </div>
+          <p id="cv-status" class="status" role="status" aria-live="polite"></p>
+          <h2 class="sub">Timestamp converter</h2>
+          <label for="ts-in">Unix time or a date</label>
+          <div class="row">
+            <input id="ts-in" type="text" spellcheck="false" placeholder="1760000000 or 2026-10-15">
+            <button id="ts-now" class="ghost">Now</button>
+          </div>
+          <dl id="ts-out" class="kv"></dl>
+        </section>
+
+        <section id="p-json" role="tabpanel" aria-labelledby="t-json" hidden>
+          <label for="js-in">JSON</label>
+          <textarea id="js-in" rows="12" spellcheck="false" placeholder='{"paste":"your JSON here"}'></textarea>
+          <div class="row wrap">
+            <button id="js-format" class="primary">Format</button>
+            <button id="js-sort" class="ghost">Format + sort keys</button>
+            <button id="js-min" class="ghost">Minify</button>
+            <button id="js-copy" class="ghost">Copy</button>
+          </div>
+          <p id="js-status" class="status" role="status" aria-live="polite"></p>
+        </section>
+
+        <section id="p-regex" role="tabpanel" aria-labelledby="t-regex" hidden>
+          <div class="row">
+            <div class="grow"><label for="rx-pat">Pattern</label><input id="rx-pat" type="text" spellcheck="false" placeholder="(\w+)@(\w+)\.com"></div>
+            <div class="flags"><label for="rx-flags">Flags</label><input id="rx-flags" type="text" value="g" spellcheck="false" maxlength="7"></div>
+          </div>
+          <label for="rx-text">Test text</label>
+          <textarea id="rx-text" rows="6" spellcheck="false" placeholder="Paste the text to search"></textarea>
+          <p id="rx-status" class="status" role="status" aria-live="polite"></p>
+          <div id="rx-out"></div>
+        </section>
+
+        <section id="p-report" role="tabpanel" aria-labelledby="t-report" hidden>
+          <div class="grid2">
+            <div><label for="rp-project">Report title</label><input id="rp-project" type="text" placeholder="Acme web app test"></div>
+            <div><label for="rp-tester">Prepared by</label><input id="rp-tester" type="text" placeholder="Your name"></div>
+          </div>
+          <label for="rp-scope">Scope</label>
+          <input id="rp-scope" type="text" placeholder="app.example.com (written permission on file)">
+          <div id="rp-list"></div>
+          <div class="row wrap">
+            <button id="rp-md" class="primary">Download Markdown</button>
+            <button id="rp-html" class="ghost">Download HTML (print to PDF)</button>
+          </div>
+          <div class="row wrap">
+            <button id="rp-copy" class="ghost">Copy Markdown</button>
+            <button id="rp-clear" class="danger">Clear all</button>
+          </div>
+        </section>
+      </main>
+
+      <footer class="foot">
+        <span>100% local. No tracking.</span>
+      </footer>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

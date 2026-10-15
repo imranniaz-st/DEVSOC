@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DevSec Toolkit privacy policy</title>
+  <link rel="stylesheet" href="page.css">
+</head>
+<body>
+  <main class="wrap">
+    <h1>Privacy policy</h1>
+    <p class="lead">DevSec Toolkit collects no personal data. Last updated: October 15, 2026.</p>
+
+    <h2>The short version</h2>
+    <p>DevSec Toolkit works entirely inside your browser. We do not collect, store on a server, sell, or share any information about you or the websites you visit. There are no accounts, no analytics, no advertising and no remote code.</p>
+
+    <h2>What the extension reads</h2>
+    <ul>
+      <li><strong>The page you scan.</strong> When you press "Scan this page", the extension reads that page's HTML, scripts, headers, and browser storage so it can show findings. It does this only for the active tab and only after you click.</li>
+      <li><strong>Cookies (optional).</strong> If you press "Check cookies", Chrome asks for permission for that one site. Cookie attributes are analyzed locally and never leave your device. You can remove the permission at any time.</li>
+    </ul>
+
+    <h2>What is saved on your device</h2>
+    <p>Findings you add to a report, and the report title, author and scope you type, are stored with <code>chrome.storage.local</code> on your computer so they are there next time. Use "Clear all" on the Report tab, or remove the extension, to delete them. Nothing is synced or uploaded.</p>
+
+    <h2>Network activity</h2>
+    <p>A scan makes requests only to the website you are on (its own page and its own script files) to read headers and look for exposed secrets. The extension never sends data to us or to any third party.</p>
+
+    <h2>Permissions, in plain language</h2>
+    <ul>
+      <li><code>activeTab</code> and <code>scripting</code>: run a scan on the current tab when you click.</li>
+      <li><code>storage</code>: remember your report on your device.</li>
+      <li><code>cookies</code> (optional): check cookie flags for a site you approve.</li>
+    </ul>
+
+    <h2>Children</h2>
+    <p>The extension is a developer tool and collects no data from anyone, including children.</p>
+
+    <h2>Changes and contact</h2>
+    <p>If this policy changes, the new version will ship with the extension and the date above will be updated. Questions: <code>support@your-domain.example</code></p>
+  </main>
+</body>
+</html>
